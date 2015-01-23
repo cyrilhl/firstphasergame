@@ -1,113 +1,198 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <title>Phaser - Making your first game, part 1</title>
-        <script type="text/javascript" src="js/phaser.min.js"></script>
-        <style type="text/css">
-            body {
-                margin: 0;
+
+<head>
+    <meta name="viewport" content="width=device-width, user-scalable=no">
+    <meta charset="UTF-8" />
+    <title>Phaser - Making your first game, part 1</title>
+    <script type="text/javascript" src="js/phaser.min.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <script type="text/javascript">
+        // Global varible
+        var game = new Phaser.Game(800, 600, Phaser.AUTO, '', {
+            preload: preload,
+            create: create,
+            update: update
+        });
+
+        var score = 0;
+        var scoreText;
+        var stars;
+
+        var left = false;
+        var right = false;
+        var jump = false;
+
+        function preload() {
+            game.load.image('sky', 'asset/sky.png');
+            game.load.image('ground', 'asset/platform.png');
+            game.load.image('star', 'asset/star.png');
+            game.load.spritesheet('dude', 'asset/dude.png', 32, 48);
+
+            //gamepad buttons
+            game.load.spritesheet('buttonhorizontal', 'asset/button/button-horizontal.png', 96, 64);
+            game.load.spritesheet('buttonjump', 'asset/button/button-round-b.png', 96, 96);
+        }
+
+        function create() {
+            // System setting
+            game.physics.startSystem(Phaser.Physics.ARCADE);
+            game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
+            game.scale.pageAlignHorizontally = true;
+            game.scale.pageAlignVertically = true;
+
+
+            // Init background platform
+            game.add.sprite(0, 0, 'sky');
+
+            platforms = game.add.group();
+            platforms.enableBody = true;
+
+            var ground = platforms.create(0, game.world.height - 64, 'ground');
+            ground.scale.setTo(2, 2);
+            ground.body.immovable = true;
+
+            var ledge = platforms.create(300, game.world.height - 200, 'ground');
+            ledge.body.immovable = true;
+
+            ledge = platforms.create(-150, game.world.height - 350, 'ground');
+            ledge.body.immovable = true;
+
+            // Init Player
+            player = game.add.sprite(32, game.world.height - 150, 'dude');
+            game.physics.arcade.enable(player);
+
+            player.body.bounce.y = 0.1;
+            player.body.gravity.y = 300;
+            player.body.collideWorldBounds = true;
+
+            player.animations.add('left', [0, 1, 2, 3], 10, true);
+            player.animations.add('right', [5, 6, 7, 8], 10, true);
+
+            // Init Star
+            stars = game.add.group();
+            stars.enableBody = true;
+
+            for (var i = 0; i < 12; i++) {
+                var star = stars.create(i * 70, 0, 'star');
+                star.body.gravity.y = 20;
+                star.body.bounce.y = 0.7 + Math.random() * 0.2;
             }
-        </style>
-    </head>
-    <body>
-        <script type="text/javascript">
-            // Global varible
-            var game = new Phaser.Game(800, 600, Phaser.AUTO, '', { preload: preload, create: create, update: update });
-            var score = 0;
-            var scoreText;
-            
-            function preload() {
-                game.load.image('sky', 'asset/sky.png');
-                game.load.image('ground', 'asset/platform.png');
-                game.load.image('star', 'asset/star.png');
-                game.load.spritesheet('dude', 'asset/dude.png', 32, 48);
+
+            // Init Score
+            scoreText = game.add.text(16, 16, 'Score: 0', {
+                fontSize: '32px',
+                fill: '#000'
+            });
+
+            // Init control
+            buttonleft = game.add.button(40, game.world.height - 100, 'buttonhorizontal', null, this, 0, 1, 0, 1);
+            buttonleft.fixedToCamera = true;
+            buttonleft.events.onInputOver.add(function() {
+                left = true;
+            });
+            buttonleft.events.onInputOut.add(function() {
+                left = false;
+            });
+            buttonleft.events.onInputDown.add(function() {
+                left = true;
+            });
+            buttonleft.events.onInputUp.add(function() {
+                left = false;
+            });
+
+            buttonright = game.add.button(200, game.world.height - 100, 'buttonhorizontal', null, this, 0, 1, 0, 1);
+            buttonright.fixedToCamera = true;
+            buttonright.events.onInputOver.add(function() {
+                right = true;
+            });
+            buttonright.events.onInputOut.add(function() {
+                right = false;
+            });
+            buttonright.events.onInputDown.add(function() {
+                right = true;
+            });
+            buttonright.events.onInputUp.add(function() {
+                right = false;
+            });
+
+            buttonjump = game.add.button(600, game.world.height - 120, 'buttonjump', null, this, 0, 1, 0, 1); //game, x, y, key, callback, callbackContext, overFrame, outFrame, downFrame, upFrame
+            buttonjump.fixedToCamera = true; //our buttons should stay on the same place  
+            buttonjump.events.onInputOver.add(function() {
+                jump = true;
+            });
+            buttonjump.events.onInputOut.add(function() {
+                jump = false;
+            });
+            buttonjump.events.onInputDown.add(function() {
+                jump = true;
+            });
+            buttonjump.events.onInputUp.add(function() {
+                jump = false;
+            });
+        }
+
+        function update() {
+            // Set physics
+            game.physics.arcade.collide(player, platforms);
+            game.physics.arcade.collide(stars, platforms);
+            game.physics.arcade.overlap(player, stars, collectStar, null, this);
+
+            // Set player physics
+            player.body.velocity.x = 0;
+
+            // player control
+            if (left) {
+                player.body.velocity.x = -150;
+                player.animations.play('left');
             }
-            
-            function create() {
-                // System setting
-                game.physics.startSystem(Phaser.Physics.ARCADE);
-                
-                // Init background platform
-                game.add.sprite(0, 0, 'sky');
-                
-                platforms = game.add.group();
-                platforms.enableBody = true;
-                
-                var ground = platforms.create(0, game.world.height - 64, 'ground');
-                ground.scale.setTo(2,2);
-                ground.body.immovable = true;
-                
-                var ledge = platforms.create(400, 400, 'ground');
-                ledge.body.immovable = true;
-                
-                ledge = platforms.create(-150, 250, 'ground');
-                ledge.body.immovable = true;
-                
-                // Init Player
-                player = game.add.sprite(32, game.world.height - 150, 'dude');
-                game.physics.arcade.enable(player);
-                
-                player.body.bounce.y = 0.2;
-                player.body.gravity.y = 350;
-                player.body.collideWorldBounds = true;
-                
-                player.animations.add('left', [0, 1, 2, 3], 10, true);
-                player.animations.add('right', [5, 6, 7, 8], 10, true);
-                
-                // Init Star
-                stars = game.add.group();
-                stars.enableBody = true;
-                
-                for (var i=0; i<12; i++) {
-                    var star = stars.create(i * 70, 0, 'star');
-                    star.body.gravity.y = 20;
-                    star.body.bounce.y = 0.7 + Math.random() * 0.2;
-                }
-                
-                // Init Score
-                scoreText = game.add.text(16, 16, 'Score: 0', { fontSize: '32px', fill: '#000' });
-                
-                // Init control
-                cursors = game.input.keyboard.createCursorKeys();
+            else if (right) {
+                player.body.velocity.x = 150;
+                player.animations.play('right');
             }
-            
-            function update() {
-                // Set physics
-                game.physics.arcade.collide(player, platforms);
-                game.physics.arcade.collide(stars, platforms);
-                game.physics.arcade.overlap(player, stars, collectStar, null, this);
-                
-                // Set player physics
-                player.body.velocity.x =0;
-                
-                // player control
-                if (cursors.left.isDown) {
-                    player.body.velocity.x = -150;
-                    player.animations.play('left');
-                }
-                else if (cursors.right.isDown) {
-                    player.body.velocity.x = 150;
-                    player.animations.play('right');
-                }
-                else {
-                    player.animations.stop();
-                    player.frame = 4;
-                }
-                
-                if (cursors.up.isDown && player.body.touching.down) {
-                    player.body.velocity.y = -350;
-                }
+            else {
+                player.animations.stop();
+                player.frame = 4;
             }
-            
-            function collectStar(player, star) {
-                // Remove star
-                star.kill();
-                
-                // Add score
-                score += 10;
-                scoreText.text = 'Score: ' + score;
+
+            if (jump && player.body.touching.down) {
+                player.body.velocity.y = -350;
             }
-        </script>
-    </body>
+        }
+
+        function collectStar(player, star) {
+            // Remove star
+            star.kill();
+
+            // Add score
+            score += 10;
+            scoreText.text = 'Score: ' + score;
+
+            if (stars.countDead() === 12) {
+                restartGame();
+            }
+        }
+
+        function restartGame() {
+            player.x = 32;
+            player.y = game.world.height - 150;
+
+            stars.removeAll(true);
+
+            for (var i = 0; i < 12; i++) {
+                var star = stars.create(i * 70, 0, 'star');
+                star.body.gravity.y = 20;
+                star.body.bounce.y = 0.7 + Math.random() * 0.2;
+            }
+        }
+    </script>
+</body>
+
 </html>
